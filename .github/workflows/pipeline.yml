@@ -1,0 +1,82 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, dom, filter, gd, json
+          coverage: xdebug
+
+      - name: Copiar .env.github
+        run: cp sistema/.env.github sistema/.env
+
+      - name: Instalar Dependências
+        working-directory: ./sistema
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+
+      - name: Gerar key
+        working-directory: ./sistema
+        run: php artisan key:generate
+
+      - name: Configurar Diretório
+        working-directory: ./sistema
+        run: |
+          chmod -R 777 storage bootstrap/cache
+          touch database/database.sqlite
+          mkdir -p tests/Unit
+          php artisan config:clear
+          JWT_SECRET=$(head -c 32 /dev/urandom | base64 -w 0)
+          sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
+          php artisan config:cache
+
+      - name: Executar Migrations
+        working-directory: ./sistema
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Limpar Cache
+        working-directory: ./sistema
+        run: |
+          php artisan config:clear
+          php artisan view:clear
+          php artisan route:clear
+
+      - name: Executar Testes
+        working-directory: ./sistema
+        run: vendor/bin/phpunit --coverage-text
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configurar SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy com Envoy
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_REPOSITORY: ${{ secrets.DEPLOY_REPOSITORY }}
+          DEPLOY_RELEASES_DIR: ${{ secrets.DEPLOY_RELEASES_DIR }}
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+        run: |
+          composer global require laravel/envoy
+          ~/.composer/vendor/bin/envoy run deploy

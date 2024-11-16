@@ -1,0 +1,51 @@
+version: "3.5"
+
+services:   
+  nginx:
+    image: nginx
+    container_name: nginx
+    user: root
+    ports:
+      - ${PORT_DOCKER}:80
+    volumes:
+      - ${DIRETORIO_APP_DOCKER}:/app
+      - ./docker/nginx:/etc/nginx/conf.d
+    extra_hosts:
+      localhost.com.br: 127.0.0.1
+    environment: 
+      - NGINX_PORT=${PORT_DOCKER}
+    restart: always    
+
+  mysql:
+    container_name: mysql
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    ports:
+      - '3306:3306'
+    volumes:
+      - ./docker/mysql/sql:/docker-entrypoint-initdb.d
+
+  php:
+    build: docker/php
+    container_name: php
+    volumes:
+      - ${DIRETORIO_APP_DOCKER}:/app
+      - ./docker/php/conf/custom.ini:/opt/bitnami/php/etc/conf.d/custom.ini
+    environment:
+      XDEBUG_CONFIG: remote_host=172.18.0.1
+      PHP_IDE_CONFIG: "serverName=xdebug-docker"
+      APP_ENV: local
+      CONTAINER_ROLE: app
+    ports:
+    - 5173:5173
+    extra_hosts:
+      localhost.com.br: 127.0.0.1
+    working_dir: /app
+    restart: always
