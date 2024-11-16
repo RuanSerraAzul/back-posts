@@ -59,7 +59,21 @@
 5. Execute os testes:
    ```bash
    php artisan test --coverage-text
+
+
+## 📚 Documentação da API (Swagger)
+
+A documentação da API é gerada automaticamente usando o Swagger/OpenAPI. Para gerar/atualizar a documentação:
+
+   ```bash
+   php artisan l5-swagger:generate
    ```
+
+Após gerar, a documentação estará disponível em:
+- Local: `http://localhost/api/documentation`
+- Arquivos: `storage/api-docs/api-docs.json`
+
+
 
 ## 📂 Estrutura do Projeto
 
